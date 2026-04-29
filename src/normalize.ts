@@ -1,39 +1,45 @@
 import fs from "fs-extra";
 
-function group(g: string) {
-  return g.toLowerCase().replace(/\(.*?\)/g, "").trim().replace(/\s+/g, "-");
+function normalizeGroup(group: string) {
+  return group
+    .toLowerCase()
+    .replace(/\(.*?\)/g, "")
+    .trim()
+    .replace(/\s+/g, "-");
 }
 
-function key(g: string, t: string) {
-  const base = group(g);
-  const scale = t.match(/(\d+)/)?.[1];
-  return scale ? `${base}.${scale}` : base;
+function normalizeToken(group: string, token: string) {
+  const g = normalizeGroup(group);
+
+  // Blue-900 → blue-900
+  return token.toLowerCase().replace(/\s+/g, "-");
 }
 
 function flatten(json: any) {
-  const out: Record<string, string> = {};
+  const output: Record<string, string> = {};
 
-  for (const g of Object.keys(json)) {
-    if (g === "$extensions") continue;
+  for (const group of Object.keys(json)) {
+    if (group.startsWith("$")) continue;
 
-    for (const t of Object.keys(json[g])) {
-      out[key(g, t)] = json[g][t].$value.hex;
+    for (const token of Object.keys(json[group])) {
+      const key = normalizeToken(group, token);
+      output[key] = json[group][token].$value.hex;
     }
   }
 
-  return out;
+  return output;
 }
 
-async function run() {
-  const light = await fs.readJSON("tokens/default.tokens.json");
-  const dark = await fs.readJSON("tokens/darker.tokens.json");
+export async function runNormalize() {
+  const defaultTokens = await fs.readJSON("tokens/default.tokens.json");
+  const darkTokens = await fs.readJSON("tokens/darker.tokens.json");
 
-  await fs.outputJSON("tokens/normalized.json", {
-    light: flatten(light),
-    dark: flatten(dark),
-  });
+  const normalized = {
+    default: flatten(defaultTokens),
+    dark: flatten(darkTokens),
+  };
 
-  console.log("✅ normalized tokens ready");
+  await fs.outputJSON("tokens/normalized.json", normalized, { spaces: 2 });
+
+  console.log("✅ normalized.json created");
 }
-
-run();
